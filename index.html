@@ -510,7 +510,29 @@
   </div>
 </div>
 
-<script>
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+// ─────────────────────────────────────────────
+// 🔧 PEGA AQUÍ TU firebaseConfig de Firebase
+// ─────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyBmGKBQxffDQLxPh56jGUsNM6bcssv2J-I",
+  authDomain: "matriz-dudas-qa.firebaseapp.com",
+  projectId: "matriz-dudas-qa",
+  storageBucket: "matriz-dudas-qa.firebasestorage.app",
+  messagingSenderId: "965977937957",
+  appId: "1:965977937957:web:3ef34f78ff6f43bf8687cc",
+  measurementId: "G-T3P5TM1QBM"
+};
+// ─────────────────────────────────────────────
+
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+const colRef = collection(db, 'dudas');
+
 const TEMAS = {
   hu:  { label: 'Historia de Usuario',   cls: 'tag-hu' },
   exp: { label: 'Prueba Exploratoria',   cls: 'tag-exp' },
@@ -525,16 +547,37 @@ const ESTADOS = {
   esc:  { label: 'Escalada',  cls: 'esc' }
 };
 
-let dudas = [
-  { id:'DQA-001', duda:'¿Cuándo una prueba exploratoria necesita charter formal vs. exploración libre?', tema:'exp', estado:'res', proyecto:'DIGIPortal – Login', autor:'Thony', fecha:'2025-06-10', respuesta:'Usa charter cuando el riesgo es alto o el área es nueva. La exploración libre aplica en regresiones conocidas o durante spike de descubrimiento. ISTQB recomienda sesiones con time-box de 90 min y charter documentado para auditorías.' },
-  { id:'DQA-002', duda:'¿Cómo mapear los criterios de aceptación de una HU a casos de prueba en Azure DevOps?', tema:'hu', estado:'pend', proyecto:'DIGIPortal – Módulo Fiscal', autor:'Thony', fecha:'2025-06-12', respuesta:'' },
-  { id:'DQA-003', duda:'¿Qué severidad y prioridad asignar a un defecto que bloquea solo un rol de usuario?', tema:'def', estado:'pend', proyecto:'DIGIPortal – Permisos', autor:'Thony', fecha:'2025-06-13', respuesta:'' },
-  { id:'DQA-004', duda:'¿Cuál es la diferencia entre condición de prueba y caso de prueba según ISTQB Foundation?', tema:'cp', estado:'res', proyecto:'General', autor:'Thony', fecha:'2025-06-08', respuesta:'Condición de prueba: aspecto del ítem que puede verificarse (qué probar). Caso de prueba: conjunto de entradas, precondiciones, pasos y resultados esperados (cómo probarlo). Una condición puede derivar múltiples casos.' },
-  { id:'DQA-005', duda:'¿Cómo reportar en Azure DevOps un bug encontrado en prueba exploratoria sin HU asociada?', tema:'az', estado:'esc', proyecto:'DIGIPortal – Reportes', autor:'Thony', fecha:'2025-06-14', respuesta:'Escalado a Mariela — se requiere definir política de trazabilidad para defectos huérfanos.' },
-  { id:'DQA-006', duda:'¿Con qué criterio decidir si una HU necesita pruebas de regresión adicionales?', tema:'hu', estado:'pend', proyecto:'DIGIPortal – Flujo Documental', autor:'Thony', fecha:'2025-06-15', respuesta:'' },
-];
-
+let dudas = [];
 let selectedId = null;
+
+// ── Escucha cambios en tiempo real ──
+const q = query(colRef, orderBy('fecha', 'desc'));
+onSnapshot(q, (snapshot) => {
+  dudas = snapshot.docs.map(docSnap => ({ _docId: docSnap.id, ...docSnap.data() }));
+  renderTabla();
+  if (selectedId) {
+    const still = dudas.find(x => x.id === selectedId);
+    if (still) openDetail(selectedId); else closeDetail();
+  }
+});
+
+// ── Inicializa datos de ejemplo si la colección está vacía ──
+async function initDatosEjemplo() {
+  const snapshot = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js')
+    .then(m => m.getDocs(colRef));
+  if (snapshot.size === 0) {
+    const ejemplos = [
+      { id:'DQA-001', duda:'¿Cuándo una prueba exploratoria necesita charter formal vs. exploración libre?', tema:'exp', estado:'res', proyecto:'DIGIPortal – Login', autor:'Thony', fecha:'2025-06-10', respuesta:'Usa charter cuando el riesgo es alto o el área es nueva. La exploración libre aplica en regresiones conocidas o durante spike de descubrimiento. ISTQB recomienda sesiones con time-box de 90 min y charter documentado para auditorías.', notasManual:'' },
+      { id:'DQA-002', duda:'¿Cómo mapear los criterios de aceptación de una HU a casos de prueba en Azure DevOps?', tema:'hu', estado:'pend', proyecto:'DIGIPortal – Módulo Fiscal', autor:'Thony', fecha:'2025-06-12', respuesta:'', notasManual:'' },
+      { id:'DQA-003', duda:'¿Qué severidad y prioridad asignar a un defecto que bloquea solo un rol de usuario?', tema:'def', estado:'pend', proyecto:'DIGIPortal – Permisos', autor:'Thony', fecha:'2025-06-13', respuesta:'', notasManual:'' },
+      { id:'DQA-004', duda:'¿Cuál es la diferencia entre condición de prueba y caso de prueba según ISTQB Foundation?', tema:'cp', estado:'res', proyecto:'General', autor:'Thony', fecha:'2025-06-08', respuesta:'Condición de prueba: aspecto del ítem que puede verificarse (qué probar). Caso de prueba: conjunto de entradas, precondiciones, pasos y resultados esperados (cómo probarlo). Una condición puede derivar múltiples casos.', notasManual:'' },
+      { id:'DQA-005', duda:'¿Cómo reportar en Azure DevOps un bug encontrado en prueba exploratoria sin HU asociada?', tema:'az', estado:'esc', proyecto:'DIGIPortal – Reportes', autor:'Thony', fecha:'2025-06-14', respuesta:'Escalado a Mariela — se requiere definir política de trazabilidad para defectos huérfanos.', notasManual:'' },
+      { id:'DQA-006', duda:'¿Con qué criterio decidir si una HU necesita pruebas de regresión adicionales?', tema:'hu', estado:'pend', proyecto:'DIGIPortal – Flujo Documental', autor:'Thony', fecha:'2025-06-15', respuesta:'', notasManual:'' },
+    ];
+    for (const d of ejemplos) await addDoc(colRef, d);
+  }
+}
+initDatosEjemplo();
 
 function tagHTML(tema) {
   const t = TEMAS[tema] || TEMAS.gen;
@@ -581,7 +624,7 @@ function updateStats() {
   document.getElementById('cnt-esc').textContent  = dudas.filter(d=>d.estado==='esc').length;
 }
 
-function openDetail(id) {
+window.openDetail = function(id) {
   selectedId = id;
   const d = dudas.find(x => x.id === id);
   const panel = document.getElementById('panel-detail');
@@ -621,18 +664,20 @@ function openDetail(id) {
   renderTabla();
 }
 
-function closeDetail() {
+window.closeDetail = function() {
   selectedId = null;
   document.getElementById('panel-detail').classList.add('hidden');
   renderTabla();
 }
 
-function cambiarEstado(id, estado) {
+// Expose to inline onclick handlers
+window.cambiarEstado = async function(id, estado) {
   const d = dudas.find(x => x.id === id);
-  if (d) { d.estado = estado; openDetail(id); }
-}
+  if (!d) return;
+  await updateDoc(doc(db, 'dudas', d._docId), { estado });
+};
 
-async function consultarIA(id) {
+window.consultarIA = async function(id) {
   const d = dudas.find(x => x.id === id);
   const btn = document.getElementById('btn-ai');
   const lbl = document.getElementById('ai-label');
@@ -645,7 +690,12 @@ async function consultarIA(id) {
   box.textContent = '';
 
   const temaLabel = TEMAS[d.tema]?.label || 'QA';
-  const prompt = `Eres un experto en QA con certificación ISTQB. Responde en español, de forma clara y práctica para un QA Analyst trabajando con Azure DevOps e historias de usuario en un equipo ágil.\n\nTema: ${temaLabel}\nDuda: ${d.duda}\n\nDa una respuesta concisa (máximo 120 palabras), con criterio ISTQB cuando aplique.`;
+  const prompt = `Eres un experto en QA con certificación ISTQB. Responde en español, de forma clara y práctica para un QA Analyst trabajando con Azure DevOps e historias de usuario en un equipo ágil.
+
+Tema: ${temaLabel}
+Duda: ${d.duda}
+
+Da una respuesta concisa (máximo 120 palabras), con criterio ISTQB cuando aplique.`;
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -659,11 +709,10 @@ async function consultarIA(id) {
     });
     const data = await res.json();
     const texto = data.content?.map(c => c.text || '').join('') || 'Sin respuesta.';
-    d.respuesta = texto;
-    if (d.estado === 'pend') d.estado = 'res';
+    const nuevoEstado = d.estado === 'pend' ? 'res' : d.estado;
+    await updateDoc(doc(db, 'dudas', d._docId), { respuesta: texto, estado: nuevoEstado });
     box.textContent = texto;
     box.classList.remove('empty');
-    openDetail(id);
   } catch(e) {
     box.textContent = 'Error al conectar con Claude. Verifica tu conexión.';
     box.classList.add('empty');
@@ -672,18 +721,20 @@ async function consultarIA(id) {
     lbl.textContent = 'Consultar a Claude sobre esta duda';
     spin.style.display = 'none';
   }
-}
+};
 
-function borrarDuda() {
+window.borrarDuda = async function() {
   const d = dudas.find(x => x.id === selectedId);
   if (!d) return;
-  if (!confirm(`¿Borrar la duda "${d.id}"?\n\nEsta acción no se puede deshacer.`)) return;
-  dudas = dudas.filter(x => x.id !== selectedId);
-  closeDetail();
-  renderTabla();
-}
+  if (!confirm(`¿Borrar la duda "${d.id}"?
 
-function editarDuda(id) {
+Esta acción no se puede deshacer.`)) return;
+  await deleteDoc(doc(db, 'dudas', d._docId));
+  closeDetail();
+};
+
+
+window.editarDuda = function(id) {
   const d = dudas.find(x => x.id === id);
   if (!d) return;
   const body = document.getElementById('detail-body');
@@ -727,62 +778,68 @@ function escHTML(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function guardarEdicion(id) {
+window.guardarEdicion = async function(id) {
   const d = dudas.find(x => x.id === id);
   if (!d) return;
   const duda = document.getElementById('e-duda').value.trim();
   if (!duda) { alert('La duda no puede estar vacía.'); return; }
-  d.duda     = duda;
-  d.tema     = document.getElementById('e-tema').value;
-  d.proyecto = document.getElementById('e-proyecto').value.trim() || d.proyecto;
-  d.autor    = document.getElementById('e-autor').value.trim() || d.autor;
-  d.respuesta = document.getElementById('e-respuesta').value.trim();
-  if (d.respuesta && d.estado === 'pend') d.estado = 'res';
+  const respuesta = document.getElementById('e-respuesta').value.trim();
+  const nuevoEstado = respuesta && d.estado === 'pend' ? 'res' : d.estado;
+  await updateDoc(doc(db, 'dudas', d._docId), {
+    duda,
+    tema:     document.getElementById('e-tema').value,
+    proyecto: document.getElementById('e-proyecto').value.trim() || d.proyecto,
+    autor:    document.getElementById('e-autor').value.trim() || d.autor,
+    respuesta,
+    estado:   nuevoEstado
+  });
   openDetail(id);
-  renderTabla();
-}
+};
 
-function guardarNotas(id) {
+window.guardarNotas = async function(id) {
   const d = dudas.find(x => x.id === id);
   if (!d) return;
   const txt = document.getElementById('notas-manual').value;
-  d.notasManual = txt;
+  await updateDoc(doc(db, 'dudas', d._docId), { notasManual: txt });
   const hint = document.getElementById('notas-hint');
   hint.style.display = 'flex';
   setTimeout(() => { hint.style.display = 'none'; }, 2000);
-}
+};
 
-function openModal() { document.getElementById('modal-overlay').classList.add('open'); }
-function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+window.openModal  = function() { document.getElementById('modal-overlay').classList.add('open'); };
+window.closeModal = function() { document.getElementById('modal-overlay').classList.remove('open'); };
 
-function guardarDuda() {
+window.guardarDuda = async function() {
   const duda = document.getElementById('m-duda').value.trim();
   if (!duda) { alert('Escribe la duda antes de guardar.'); return; }
-  const num = dudas.length + 1;
-  const id = 'DQA-' + String(num).padStart(3,'0');
   const hoy = new Date().toISOString().slice(0,10);
-  dudas.unshift({
+  // Generate next ID based on current count
+  const maxNum = dudas.reduce((acc, d) => {
+    const n = parseInt(d.id?.replace('DQA-','') || 0);
+    return n > acc ? n : acc;
+  }, 0);
+  const id = 'DQA-' + String(maxNum + 1).padStart(3,'0');
+  await addDoc(colRef, {
     id, duda,
-    tema: document.getElementById('m-tema').value,
-    estado: document.getElementById('m-estado').value,
+    tema:     document.getElementById('m-tema').value,
+    estado:   document.getElementById('m-estado').value,
     proyecto: document.getElementById('m-proyecto').value || 'Sin proyecto',
-    autor: document.getElementById('m-autor').value || 'QA',
-    fecha: hoy, respuesta: ''
+    autor:    document.getElementById('m-autor').value || 'QA',
+    fecha: hoy, respuesta: '', notasManual: ''
   });
   closeModal();
   document.getElementById('m-duda').value = '';
   document.getElementById('m-proyecto').value = '';
   document.getElementById('m-autor').value = '';
-  renderTabla();
-  openDetail(id);
-}
+  selectedId = id;
+};
 
 document.getElementById('search').addEventListener('input', renderTabla);
 document.getElementById('filter-tema').addEventListener('change', renderTabla);
 document.getElementById('filter-estado').addEventListener('change', renderTabla);
 document.getElementById('modal-overlay').addEventListener('click', e => { if(e.target === e.currentTarget) closeModal(); });
 
-renderTabla();
+} // end module
 </script>
 </body>
 </html>
